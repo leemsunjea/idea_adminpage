@@ -904,7 +904,7 @@ CATEGORIES = [
 
 @app.post("/api/admin/login")
 async def admin_login(body: LoginRequest):
-    # Bootstrap super admin if no admins exist
+    # Try to bootstrap super admin, but continue even if Google Sheets fails
     try:
         existing = _list_admins()
         if not existing:
@@ -913,13 +913,28 @@ async def admin_login(body: LoginRequest):
             _upsert_admin(bootstrap_username, bootstrap_password, True)
             logger.info("Super admin bootstrapped")
     except Exception as e:
-        logger.warning(f"Bootstrap check failed: {e}")
-    admin = _get_admin_by_username(body.username)
-    if not admin:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
-    hashed = admin.get('password_hash') or ''
-    if not verify_password(body.password, hashed):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+        logger.warning(f"Google Sheets access failed during bootstrap check: {e}")
+        # Continue with fallback authentication
+    
+    # Try to authenticate user
+    try:
+        admin = _get_admin_by_username(body.username)
+        if not admin:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+        hashed = admin.get('password_hash') or ''
+        if not verify_password(body.password, hashed):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+    except Exception as e:
+        logger.error(f"Admin lookup failed: {e}")
+        # Fallback: allow default admin credentials even without Google Sheets
+        if body.username == os.getenv("ADMIN_BOOTSTRAP_USERNAME", "admin") and body.password == os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "admin123"):
+            logger.info("Using fallback admin authentication")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="관리자 인증 서비스에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요."
+            )
+    
     token = create_access_token({"sub": body.username})
     # set HttpOnly cookie for token
     max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60
@@ -938,17 +953,30 @@ async def admin_login(body: LoginRequest):
 
 @app.get("/api/admin/me")
 async def admin_me(request: Request):
-    user = get_current_user_from_request(request)
-    perms = _get_permissions(user['username']) if not user.get('is_super_admin') else {c: {"can_view": True, "can_save": True} for c in CATEGORIES}
-    return {
-        "success": True,
-        "data": {
-            "username": user['username'],
-            "is_super_admin": user['is_super_admin'],
-            "permissions": perms,
-            "categories": CATEGORIES
+    try:
+        user = get_current_user_from_request(request)
+        try:
+            perms = _get_permissions(user['username']) if not user.get('is_super_admin') else {c: {"can_view": True, "can_save": True} for c in CATEGORIES}
+        except Exception as e:
+            logger.warning(f"Failed to get permissions for {user['username']}: {e}")
+            # If permissions can't be loaded, provide basic access
+            perms = {c: {"can_view": True, "can_save": False} for c in CATEGORIES}
+        
+        return {
+            "success": True,
+            "data": {
+                "username": user['username'],
+                "is_super_admin": user['is_super_admin'],
+                "permissions": perms,
+                "categories": CATEGORIES
+            }
         }
-    }
+    except Exception as e:
+        logger.error(f"Admin me endpoint failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="사용자 정보를 가져오는데 실패했습니다."
+        )
 
 
 @app.post("/api/admin/logout")
