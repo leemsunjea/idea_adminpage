@@ -29,7 +29,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 # ===== Google configuration (edit here) =====
 # Google Drive (OAuth) settings
 GOOGLE_DRIVE_CREDENTIALS_FILE = os.getenv("GOOGLE_DRIVE_CREDENTIALS_FILE", "client_secret_956514703917-9d24mhtkm0ooqncga0v765o579si9364.apps.googleusercontent.com.json")
-GOOGLE_DRIVE_PARENT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_PARENT_FOLDER_ID", "1OIMN2YQr4ghbYnTy4KrNXT-DV7AUiF8Y")
+GOOGLE_DRIVE_PARENT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_PARENT_FOLDER_ID", "1EI-8lUCEUGobF8AbxD7mwdmap-SgnI07")
 
 # Expose to environment so gdrive_uploader can read them at import-time
 os.environ.setdefault("GOOGLE_DRIVE_CREDENTIALS_FILE", GOOGLE_DRIVE_CREDENTIALS_FILE)

@@ -39,7 +39,7 @@ _TMP_DIR = Path(os.getenv('TMPDIR') or '/tmp')
 _FALLBACK_TOKEN_FILE = str(_TMP_DIR / 'token.pickle')
 
 # Upload destination in Google Drive
-PARENT_FOLDER_ID = os.getenv('GOOGLE_DRIVE_PARENT_FOLDER_ID', '1OIMN2YQr4ghbYnTy4KrNXT-DV7AUiF8Y')
+PARENT_FOLDER_ID = os.getenv('GOOGLE_DRIVE_PARENT_FOLDER_ID', '1EI-8lUCEUGobF8AbxD7mwdmap-SgnI07')
 ######################################################################
 # In-memory background upload status store
 ######################################################################
