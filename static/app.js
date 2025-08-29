@@ -804,7 +804,7 @@ async function loadDocumentList() {
       const settings = result.data; // 백엔드 API 응답 구조에 맞춤
       
       // 불러온 데이터 콘솔 출력 (디버깅용)
-      console.log('n8n에서 받아온 settings:', settings);
+      console.log('로드된 설정:', settings);
       
       if (settings) {
         try {
@@ -825,13 +825,13 @@ async function loadDocumentList() {
           console.log('temperature exists:', !!document.getElementById('temperature'));
           console.log('max-tokens exists:', !!document.getElementById('max-tokens'));
           
-          // 3. 프롬프트 데이터 설정 (n8n 필드명과 HTML id 매핑)
+          // 3. 프롬프트 데이터 설정 (시트/백엔드 필드명과 HTML id 매핑)
           if ('aiGreeting' in settings) setValue('ai-greeting', settings.aiGreeting);
           if ('trainingData' in settings) setValue('training-data', settings.trainingData);
           if ('instructionData' in settings) setValue('instruction-data', settings.instructionData);
           
-          // 4. GPT 설정 (n8n 필드명과 HTML id 매핑)
-          // 모델 선택 (select) - n8n에서 내려오는 값을 HTML select 옵션의 value와 일치시킴
+          // 4. GPT 설정 (시트/백엔드 필드명과 HTML id 매핑)
+          // 모델 선택 (select) - 백엔드에서 내려오는 값을 HTML select 옵션의 value와 일치시킴
           const modelMap = {
             'GPT-4o-mini': 'gpt-4o-mini',
             'GPT-4o': 'gpt-4o',
@@ -839,8 +839,8 @@ async function loadDocumentList() {
             'GPT-5': 'gpt-5'
           };
           
-          const modelFromN8n = settings['gpt-model'] || 'GPT-4o-mini';
-          const modelValue = modelMap[modelFromN8n] || 'gpt-4o-mini';
+          const modelFromSettings = settings['gpt-model'] || 'GPT-4o-mini';
+          const modelValue = modelMap[modelFromSettings] || 'gpt-4o-mini';
           const temperatureValue = settings.temperature ? Number(settings.temperature) : 0.7;
           const maxTokensValue = settings['max-tokens'] ? Number(settings['max-tokens']) : 2048;
           
@@ -1377,25 +1377,15 @@ async function loadDocumentList() {
     const maxTokens = parseInt(document.getElementById('max-tokens').value);
     
     try {
-      const response = await fetch('https://imsunjea1149.app.n8n.cloud/webhook/d750cfb9-c102-4f33-951b-6e11bd41e6af', {
+      const response = await fetch('/api/save-gpt-settings', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: model,
-          temperature: temperature,
-          max_tokens: maxTokens
-        })
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, temperature, max_tokens: maxTokens }),
+        credentials: 'same-origin'
       });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        showNotification('GPT 설정이 성공적으로 저장되었습니다.', 'success');
-      } else {
-        throw new Error(result.detail || '설정 저장에 실패했습니다.');
-      }
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || result.error || '설정 저장에 실패했습니다.');
+      showNotification('GPT 설정이 성공적으로 저장되었습니다.', 'success');
     } catch (error) {
       console.error('Error saving GPT settings:', error);
       showNotification(error.message || '설정 저장 중 오류가 발생했습니다.', 'error');
