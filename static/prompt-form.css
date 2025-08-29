@@ -1,0 +1,190 @@
+/* Prompt Form Styles */
+#prompt-setting-content .content-box {
+  padding: 1.5rem;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#prompt-settings-form .form-group {
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+/* 프롬프트 설정 폼 전체 레이아웃 */
+#prompt-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem; /* 저장 버튼과의 간격 */
+}
+
+#prompt-settings-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+}
+
+#prompt-settings-form .input-with-count {
+  position: relative;
+  margin-bottom: 0.25rem;
+}
+
+#prompt-settings-form .form-textarea {
+  min-height: 60px;
+  max-height: 400px;
+  resize: vertical;
+  transition: all 0.2s ease;
+}
+
+/* Adjust specific textarea heights - made more compact */
+#ai-greeting {
+  min-height: 50px;
+  max-height: 90px !important;
+  line-height: 1.3 !important;
+  padding: 0.4rem 0.6rem !important;
+}
+
+#training-data {
+  min-height: 70px;
+  max-height: 150px !important;
+  line-height: 1.3 !important;
+  padding: 0.4rem 0.6rem !important;
+}
+
+#instruction-data {
+  min-height: 50px;
+  max-height: 120px !important;
+  line-height: 1.3 !important;
+  padding: 0.4rem 0.6rem !important;
+}
+
+/* Character count styling */
+.char-count {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.5rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  background: rgba(30, 30, 30, 0.9);
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Form hint styling */
+#prompt-settings-form .form-hint {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+/* Save button container */
+#prompt-setting-content > .content-box > div[style*="justify-content: flex-end"] {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #3a3a3a;
+  display: flex;
+  justify-content: flex-end;
+  position: sticky; /* 스크롤 시에도 항상 보이도록 */
+  bottom: 0;
+  background: #1e1e1e; /* 배경색 추가 */
+  padding-bottom: 0.5rem;
+  z-index: 10;
+}
+
+/* Focus states */
+#prompt-settings-form .form-textarea:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+/* Required field indicator */
+.required::after {
+  content: ' *';
+  color: #f87171;
+}
+
+/* 프롬프트 설정 content-box 높이 조정 */
+#prompt-setting-content .content-box {
+  min-height: auto;
+  max-height: none;
+  overflow: visible;
+  padding-bottom: 2rem; /* 저장 버튼을 위한 여백 추가 */
+}
+
+/* 프롬프트 설정 저장 버튼 스타일 */
+#save-prompt-btn {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 120px;
+  justify-content: center;
+}
+
+#save-prompt-btn:hover {
+  background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+#save-prompt-btn:active {
+  transform: translateY(0);
+}
+
+#save-prompt-btn:disabled {
+  background: #6b7280;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+#save-prompt-btn.loading {
+  background: #6b7280;
+  cursor: wait;
+}
+
+/* 저장 메시지 스타일 */
+.save-message {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+}
+
+.save-message.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.save-message.success {
+  background-color: #10b981;
+  color: white;
+}
+
+.save-message.error {
+  background-color: #ef4444;
+  color: white;
+}
+
+.save-message.info {
+  background-color: #3b82f6;
+  color: white;
+}

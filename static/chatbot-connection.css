@@ -1,0 +1,258 @@
+:root {
+  /* Base Colors */
+  --bg-color: #ffffff;          /* Main background */
+  --bg-color-light: #f8f9fa;    /* Light background for cards/sections */
+  --bg-color-lighter: #f1f3f5;  /* Even lighter background */
+  
+  /* Text Colors */
+  --text-color: #212121;        /* Primary text color */
+  --text-muted: #6c757d;        /* Muted text for secondary information */
+  
+  /* Theme Colors */
+  --primary-color: #4361ee;     /* Primary brand color */
+  --primary-dark: #3a56d4;      /* Darker shade for hover states */
+  --success-color: #10b981;     /* Success/online state */
+  --warning-color: #f59e0b;     /* Warning/checking state */
+  --danger-color: #ef4444;      /* Error/offline state */
+  --border-color: #dee2e6;      /* Border color for inputs and dividers */
+  
+  /* Status Indicator Shadows */
+  --success-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+  --warning-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+  --danger-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+  
+  /* Animation */
+  --transition-speed: 0.2s;
+}
+
+
+/* Hide iframe copy button */
+#copy-iframe-code {
+  display: none !important;
+}
+
+/* Chatbot Connection Container */
+.chatbot-connection-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  height: 100%;
+}
+
+/* URL Section */
+.chatbot-url-section {
+  background: var(--bg-color-light);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.input-with-button {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.input-with-button .form-input {
+  flex: 1;
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 0.9375rem;
+  transition: border-color 0.2s ease;
+}
+
+.input-with-button .form-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.1);
+}
+
+/* 상태 확인 버튼 스타일 - 더 구체적인 선택자로 오버라이드 */
+.input-with-button .status-check-btn,
+#check-status-btn.status-check-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+  padding: 0 1.25rem !important;
+  height: 2.75rem !important;
+  background-color: transparent !important;  /* 투명 배경 */
+  border: 1px solid #e0e0e0 !important;  /* 연한 회색 테두리 */
+  border-radius: 0.5rem !important;
+  color: #333 !important;  /* 어두운 글씨 */
+  font-size: 0.9375rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* 버튼 호버 효과 */
+.input-with-button .status-check-btn:hover,
+#check-status-btn.status-check-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;  /* 호버 시 약간 어두운 배경 */
+  border-color: #bdbdbd !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 버튼 클릭 효과 */
+.input-with-button .status-check-btn:active,
+#check-status-btn.status-check-btn:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 비활성화 상태 - 더 구체적인 선택자로 오버라이드 */
+button.input-with-button .status-check-btn:disabled,
+button#check-status-btn.status-check-btn:disabled,
+button.input-with-button .status-check-btn[disabled],
+button#check-status-btn.status-check-btn[disabled] {
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: #e0e0e0 !important;
+  color: #bdbdbd !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+  opacity: 0.7 !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* 기본 버튼 비활성화 스타일 오버라이드 */
+button:disabled,
+button[disabled] {
+  background-color: transparent !important;
+  background-image: none !important;
+  opacity: 0.7 !important;
+  cursor: not-allowed !important;
+}
+
+/* Status Indicator */
+.status-indicator {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--danger-color);
+  transition: all 0.3s ease;
+}
+
+.status-indicator.online {
+  background: var(--success-color);
+  box-shadow: var(--success-shadow);
+}
+
+.status-indicator.offline {
+  background: var(--danger-color);
+  box-shadow: var(--danger-shadow);
+}
+
+.status-indicator.checking {
+  background: var(--warning-color);
+  animation: pulse 1.5s infinite;
+  box-shadow: var(--warning-shadow);
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+/* Connection Status */
+.connection-status {
+  background: var(--bg-color-light);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.status-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.status-label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.status-value {
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+
+.status-value.online {
+  color: var(--success-color);
+}
+
+.status-value.offline {
+  color: var(--danger-color);
+}
+
+.status-value.checking {
+  color: var(--warning-color);
+  animation: pulse 1.5s infinite;
+}
+
+/* Form Hint */
+.form-hint {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+/* Save Button */
+.save-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-speed) ease;
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.save-btn:hover {
+  background: var(--primary-dark);
+}
+
+/* Responsive */
+@media (min-width: 768px) {
+  .chatbot-connection-container {
+    flex-direction: row;
+    gap: 2rem;
+  }
+  
+  .chatbot-url-section {
+    flex: 1;
+    min-width: 0;
+  }
+}

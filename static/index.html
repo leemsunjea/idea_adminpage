@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel</title>
+
+  <script src="https://unpkg.com/flowbite@1.6.5/dist/flowbite.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/content-styles.css">
+  <link rel="stylesheet" href="/static/prompt-form.css">
+</head>
+
+<body>
+  <button class="hamburger-btn" id="hamburgerBtn">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round" />
+    </svg>
+  </button>
+
+  <div class="sidebar" id="sidebar">
+    <!-- 상단 액션 버튼들을 감싸는 컨테이너 -->
+    <div class="top-actions-container">
+      <div class="sidebar-actions">
+        <button class="action-btn" id="chatbotconnect">
+          <span>챗봇 연결</span>
+        </button>
+        <button class="action-btn" id="chatHistory">
+          <span>채팅 기록</span>
+        </button>
+
+        <button class="action-btn" id="gptsetting">
+          <span>GPT</span>
+        </button>
+
+        <button class="action-btn" id="promptsetting">
+          <span>프롬프트</span>
+        </button>
+
+        <button class="action-btn" id="datasetting">
+          <span>데이터</span>
+        </button>
+
+        <button class="action-btn" id="referencedatasetting">
+          <span>참조 데이터</span>
+        </button>
+        <button class="action-btn" id="adminmanage" style="display:none;">
+          <span>관리</span>
+        </button>
+
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- 로그인 오버레이 -->
+  <div id="login-overlay" class="login-overlay" style="display:none;">
+    <div class="login-modal">
+      <h2 style="margin-bottom:14px;">관리자 로그인</h2>
+      <div class="form-group">
+        <label for="admin-username">아이디</label>
+        <input type="text" id="admin-username" class="form-input" placeholder="아이디">
+      </div>
+      <div class="form-group">
+        <label for="admin-password">비밀번호</label>
+        <input type="password" id="admin-password" class="form-input" placeholder="비밀번호">
+      </div>
+      <div class="form-actions" style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" id="admin-login-btn" class="save-btn">
+          <span class="button-text">로그인</span>
+          <span class="button-loading" style="display: none;">
+            <span class="spinner"></span> 처리 중...
+          </span>
+        </button>
+      </div>
+      <div id="login-error" class="save-message error" style="display:none;margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <style>
+    .login-overlay { 
+      position: fixed; 
+      inset: 0; 
+      background: #000000; /* 완전 불투명한 검은색 */
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      z-index: 2000; 
+    }
+    .login-modal { 
+      background: #1f2937; 
+      color: #e5e7eb; 
+      border-radius: 8px; 
+      padding: 20px; 
+      width: 100%; 
+      max-width: 420px; 
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4); 
+    }
+    .login-modal .form-group label { color: #e5e7eb; }
+    
+    /* 로그인하지 않았을 때 메인 콘텐츠 완전 숨김 */
+    .chat-container.not-logged-in {
+      display: none !important;
+    }
+    
+    /* 로그인하지 않았을 때 사이드바 완전 숨김 */
+    .sidebar.not-logged-in {
+      display: none !important;
+    }
+    
+    /* 로그인하지 않았을 때 햄버거 버튼 완전 숨김 */
+    .hamburger-btn.not-logged-in {
+      display: none !important;
+    }
+  </style>
+
+  <div class="chat-container">
+    <!-- 채팅 내용이 여기에 표시됩니다 -->
+    <div id="chatbot-connect-content" class="content-section active">
+      <h2>챗봇 연결 관리</h2>
+      <div class="content-box">
+        <div class="chatbot-connection-container">
+          <div class="chatbot-url-section">
+            <div class="form-group">
+              <label for="chatbot-url">챗봇 URL</label>
+              <div class="input-with-button">
+                <input type="url" id="chatbot-url" class="form-input"
+                  placeholder="https://port-0-nicen8n-maqzdlvl8104ba24.sel4.cloudtype.app/?"
+                  value="https://port-0-nicen8n-maqzdlvl8104ba24.sel4.cloudtype.app/?">
+                <button type="button" id="check-status-btn" class="status-check-btn">
+                  <span class="status-indicator offline"></span>
+                  <span>상태 확인</span>
+                </button>
+              </div>
+              <p class="form-hint">연결할 챗봇의 URL을 입력하세요.</p>
+            </div>
+
+            <div class="connection-status">
+              <div class="status-item">
+                <span class="status-label">연결 상태:</span>
+                <span class="status-value" id="connection-status">오프라인</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">마지막 확인:</span>
+                <span class="status-value" id="last-checked">-</span>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" id="save-chatbot-url" class="save-btn">저장</button>
+              <button type="button" id="copy-iframe-code" class="copy-btn" hidden>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M5 15H4C2.89543 15 2 14.1046 2 13V4C2 2.89543 2.89543 2 4 2H13C14.1046 2 15 2.89543 15 4V5"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                iframe 코드 복사
+              </button>
+            </div>
+          </div>
+
+          <div class="chatbot-preview">
+            <div class="preview-header">
+              <h3>챗봇 미리보기</h3>
+              <div class="preview-actions">
+                <span id="preview-status" class="status-badge offline">오프라인</span>
+              </div>
+            </div>
+            <div class="iframe-container">
+              <div id="no-preview" class="no-preview">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <p>챗봇 URL을 입력하고 저장하시면<br>미리보기가 표시됩니다.</p>
+              </div>
+              <iframe id="chatbot-iframe" style="display: none;" frameborder="0"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <!-- iframe 코드 모달 -->
+        <div id="iframe-modal" class="modal">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>iframe 코드</h3>
+              <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+              <p>아래 코드를 복사하여 웹사이트에 붙여넣으세요.</p>
+              <div class="code-block">
+                <pre id="iframe-code"></pre>
+                <button id="copy-code" class="copy-code-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M5 15H4C2.89543 15 2 14.1046 2 13V4C2 2.89543 2.89543 2 4 2H13C14.1046 2 15 2.89543 15 4V5"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="gpt-setting-content" class="content-section">
+      <h2>GPT 설정</h2>
+      <div class="content-box">
+        <form id="gpt-settings-form">
+          <div class="form-group">
+            <label for="gpt-model">GPT 모델</label>
+            <select id="gpt-model" class="form-select">
+              <option value="gpt-4o-mini" selected>GPT-4o-mini</option>
+              <option value="gpt-4o">GPT-4o</option>
+              <option value="gpt-5-mini">GPT-5-mini</option>
+              <option value="gpt-5">GPT-5</option>
+            </select>
+            <p class="form-hint">사용할 GPT 모델을 선택해주세요. <br>GPT 버전 (gpt-4o-mini 사용 권장)- 일반적으로 파일 업로드 또는 직접 텍스트를 입력하여 챗봇
+              데이터를 업데이트 하는 경우 <br>gpt-4o-mini를 사용하며 고도의 데이터를 업로드하여 더 나은 퀄리티의 응답을 도출해야 하는 경우 gpt-4o를 사용합니다.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="temperature">Temperature</label>
+            <div class="slider-container">
+              <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7" class="slider">
+              <span id="temperature-value">0.7</span>
+            </div>
+            <p class="form-hint">값이 높을수록 창의적인 응답이 생성됩니다 (0.1 ~ 2.0).</p>
+          </div>
+
+          <div class="form-group">
+            <label for="max-tokens">최대 토큰 수 (Max Tokens)</label>
+            <input type="number" id="max-tokens" class="form-input" min="1" max="8192" value="2048"
+              placeholder="생성할 최대 토큰 수를 입력하세요 (1-8192)">
+            <p class="form-hint">응답에 사용할 최대 토큰 수를 설정하세요. 값이 클수록 긴 응답이 생성됩니다.<br>값이 클수록 응답 시간이 증가합니다.<br>최소한 516 이상을
+              입력해주세요. 값이 너무 작다면 응답이 생성중 중단될 수 있습니다.</p>
+          </div>
+
+          <div class="form-actions"
+            style="display: flex; justify-content: flex-end; flex-direction: column; gap: 10px; margin-top: 20px;">
+            <div id="gpt-save-message" class="save-message"
+              style="display: none; padding: 10px; border-radius: 4px; text-align: right;"></div>
+            <div style="display: flex; justify-content: flex-end;">
+              <button type="submit" id="save-gpt-btn" class="save-btn">
+                <span class="button-text">설정 저장</span>
+                <span class="button-loading" style="display: none;">
+                  <span class="spinner"></span> 처리 중...
+                </span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 채팅 기록 섹션 -->
+    <div id="chat-history-content" class="content-section">
+      <h2>채팅 기록</h2>
+      <div class="content-box">
+        <div class="chat-history-container">
+          <div class="chat-history-sidebar">
+            <div class="search-box">
+              <input type="text" placeholder="채팅 검색..." class="search-input">
+              <button class="search-btn">검색</button>
+            </div>
+            <div class="sort-options">
+              <label for="sort-select">정렬:</label>
+              <select id="sort-select" class="sort-select">
+                <option value="default">최근 대화순</option>
+                <option value="messages-desc">대화쌍 많은순</option>
+                <option value="messages-asc">대화쌍 적은순</option>
+                <option value="text-desc">텍스트 많은순</option>
+                <option value="text-asc">텍스트 적은순</option>
+              </select>
+            </div>
+            <div class="chat-list"><div style="padding:8px;color:#9ca3af;">세션을 불러오는 중...</div></div>
+          </div>
+          <div class="chat-detail">
+            <div class="chat-messages">
+              <!-- 채팅 메시지들이 여기에 표시됩니다 -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="prompt-setting-content" class="content-section">
+      <h2>프롬프트 관리</h2>
+
+      <div class="content-box">
+        <form id="prompt-settings-form">
+          <div class="form-group">
+            <label for="ai-greeting">AI 인사 메시지</label>
+            <div class="input-with-count">
+              <textarea id="ai-greeting" class="form-textarea" rows="2" placeholder="AI가 사용자에게 보낼 인사 메시지를 입력해주세요."></textarea>
+              <div class="char-count"><span id="greeting-count">0</span>/500</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="training-data" class="required">(필수) 학습데이터</label>
+            <div class="input-with-count">
+              <textarea id="training-data" class="form-textarea" rows="3" placeholder="AI가 학습할 데이터를 입력해주세요." required></textarea>
+              <div class="char-count"><span id="training-count">0</span>/2000</div>
+            </div>
+            <p class="form-hint">AI가 학습할 데이터를 상세하게 입력해주세요. (최소 100자 이상 권장)</p>
+          </div>
+
+          <div class="form-group">
+            <label for="instruction-data">지침데이터</label>
+            <div class="input-with-count">
+              <textarea id="instruction-data" class="form-textarea" rows="2" placeholder="AI가 따라야 할 지침을 입력해주세요."></textarea>
+              <div class="char-count"><span id="instruction-count">0</span>/1000</div>
+            </div>
+            <p class="form-hint">AI가 따라야 할 구체적인 지침을 입력해주세요. (예: '친절하게 대답하세요', '간결하게 답변하세요' 등)</p>
+          </div>
+        </form>
+        <div style="display: flex; justify-content: flex-end; flex-direction: column; gap: 10px; margin-top: 20px;">
+          <div id="save-message" class="save-message"
+            style="display: none; padding: 10px; border-radius: 4px; text-align: right;"></div>
+          <div style="display: flex; justify-content: flex-end;">
+            <button type="submit" id="save-prompt-btn" class="save-btn">
+              <span class="button-text">저장하기</span>
+              <span class="button-loading" style="display: none;">
+                <span class="spinner"></span> 처리 중...
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="data-setting-content" class="content-section">
+      <h2>데이터 관리</h2>
+
+      <!-- 문서 목록 섹션 -->
+      <div class="content-box mb-6">
+        <div class="table-header-row">
+          <h3 class="table-title">업로드된 문서 목록</h3>
+          <button id="refresh-docs-btn" class="refresh-btn">
+            새로고침
+          </button>
+        </div>
+        <div class="custom-table-wrapper">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>문서명</th>
+                <th>상태</th>
+                <th>업로드 일시</th>
+              </tr>
+            </thead>
+            <tbody id="document-list">
+              <!-- 문서 목록이 여기에 동적으로 로드됩니다 -->
+              <tr>
+                <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">문서를 불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 파일 업로드 섹션 -->
+      <div class="content-box">
+        <h3 class="text-lg font-semibold mb-4">새 문서 업로드</h3>
+        <div class="upload-container">
+          <!-- 파일 업로드 섹션 -->
+          <div id="file-upload-section">
+            <div id="drop-zone" class="file-upload-box">
+              <p>파일을 여기로 드래그하거나</p>
+              <input type="file" id="file-input" multiple style="display: none;">
+              <button onclick="document.getElementById('file-input').click()">파일 선택</button>
+            </div>
+            <div id="file-list" class="file-list">
+              <!-- 파일 목록이 여기에 표시됩니다 -->
+            </div>
+            <button id="start-upload" class="upload-button">업로드 시작</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="reference-data" class="content-section">
+      <h2 class="text-xl font-semibold mb-6">참조데이터관리</h2>
+
+      <div class="toggle-settings">
+        <div class="toggle-item">
+          <span class="toggle-label">출처 출력</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-references" checked>
+            <span class="toggle-slider round"></span>
+          </label>
+        </div>
+        <div class="toggle-item">
+          <span class="toggle-label">다운로드 버튼</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-download-button" checked>
+            <span class="toggle-slider round"></span>
+          </label>
+        </div>
+      </div>
+      <style>
+        .toggle-settings {
+          background: rgb(30, 30, 30);
+          border-radius: 0.5rem;
+          padding: 1.5rem;
+          margin-bottom: 1rem;
+        }
+
+        .toggle-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1rem;
+        }
+
+        .toggle-item:last-child {
+          margin-bottom: 0;
+        }
+
+        .toggle-label {
+          color: #E5E7EB;
+          font-size: 0.875rem;
+          line-height: 1.25rem;
+        }
+
+        .toggle-switch {
+          position: relative;
+          display: inline-block;
+          width: 44px;
+          height: 24px;
+        }
+
+        .toggle-switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        .toggle-slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #4B5563;
+          transition: .4s;
+        }
+
+        .toggle-slider:before {
+          position: absolute;
+          content: "";
+          height: 16px;
+          width: 16px;
+          left: 4px;
+          bottom: 4px;
+          background-color: white;
+          transition: .4s;
+        }
+
+        input:checked+.toggle-slider {
+          background-color: #3B82F6;
+        }
+
+        input:focus+.toggle-slider {
+          box-shadow: 0 0 1px #3B82F6;
+        }
+
+        input:checked+.toggle-slider:before {
+          transform: translateX(20px);
+        }
+
+        .toggle-slider.round {
+          border-radius: 24px;
+        }
+
+        .toggle-slider.round:before {
+          border-radius: 50%;
+        }
+        
+        /* 비활성화된 토글 버튼 스타일 */
+        .toggle-switch input:disabled + .toggle-slider {
+          background-color: #6b7280;
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+        
+        .toggle-switch input:disabled + .toggle-slider:before {
+          background-color: #d1d5db;
+        }
+        
+        .toggle-switch input:disabled:focus + .toggle-slider {
+          box-shadow: none;
+        }
+      </style>
+    </div>
+
+    <!-- 관리자 관리 섹션 (슈퍼관리자 전용) -->
+    <div id="admin-management-content" class="content-section">
+      <h2>관리자 관리</h2>
+      <div class="content-box">
+        <div class="admin-users-container">
+          <div class="admin-section">
+            <h3>관리자 목록</h3>
+            <div id="admin-users-list" class="admin-users-list"></div>
+          </div>
+          <div class="admin-section">
+            <h3>관리자 추가/수정</h3>
+            <div class="admin-form">
+              <div class="admin-form-group">
+                <label for="new-admin-username">아이디</label>
+                <input id="new-admin-username" type="text" />
+              </div>
+              <div class="admin-form-group">
+                <label for="new-admin-password">비밀번호</label>
+                <input id="new-admin-password" type="password" />
+              </div>
+              <div class="admin-form-group">
+                <label for="new-admin-super">
+                  <input type="checkbox" id="new-admin-super" />
+                  최고관리자
+                </label>
+              </div>
+              <div class="form-actions">
+                <button id="save-admin-user" class="admin-action-btn">저장</button>
+                <button id="delete-admin-user" class="admin-action-btn delete">삭제</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="admin-section">
+          <h3>권한 설정</h3>
+          <div id="perms-grid" class="permissions-grid"></div>
+          <button id="save-permissions" class="save-permissions-btn">권한 저장</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script type="module" src="/static/app.js"></script>
+</body>
+
+</html>

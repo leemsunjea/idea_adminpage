@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store
+
+# Node.js
+node_modules/
+
+# 기타
+uploads/
+*.log
+
+# Docker
+*.pid
+*.sock
