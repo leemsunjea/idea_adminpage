@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 import time
+from io import BytesIO
+import sys
 
 import requests
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status, BackgroundTasks
@@ -20,6 +22,12 @@ import pdfplumber
 import tiktoken
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from docx import Document as DocxDocument
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 # Google Sheets Integration
 import pandas as pd
@@ -535,6 +543,82 @@ def get_file_extension(filename: str) -> str:
 
 def is_allowed_file(filename: str) -> bool:
     return get_file_extension(filename) in ALLOWED_EXTENSIONS
+
+
+# ===== DOCX → PDF conversion utilities =====
+def _register_korean_font() -> str:
+    """Try to register a Korean-capable font for ReportLab. Returns font name to use."""
+    try:
+        if sys.platform == 'darwin':
+            candidates = [
+                ("/System/Library/Fonts/AppleSDGothicNeo.ttc", 0),
+                ("/System/Library/Fonts/AppleGothic.ttc", 0),
+                ("/System/Library/Fonts/STHeiti Light.ttc", 0),
+                ("/Library/Fonts/Arial Unicode.ttf", None),
+            ]
+            for path, sub_idx in candidates:
+                if os.path.exists(path):
+                    if path.endswith('.ttc'):
+                        pdfmetrics.registerFont(TTFont('KoreanFont', path, subfontIndex=sub_idx or 0))
+                    else:
+                        pdfmetrics.registerFont(TTFont('KoreanFont', path))
+                    return 'KoreanFont'
+    except Exception:
+        pass
+    return 'Helvetica'
+
+
+def convert_docx_bytes_to_pdf_bytes(docx_bytes: bytes, original_filename: str) -> bytes:
+    """Convert DOCX bytes to a simple PDF (text only) and return PDF bytes."""
+    font_name = _register_korean_font()
+    styles = getSampleStyleSheet()
+
+    # Read DOCX from memory
+    doc = DocxDocument(BytesIO(docx_bytes))
+
+    # Build PDF in memory
+    buffer = BytesIO()
+    pdf = SimpleDocTemplate(buffer, pagesize=A4)
+    story = []
+
+    title_style = ParagraphStyle(
+        'CustomTitle', parent=styles['Heading1'], fontSize=18, spaceAfter=20, alignment=1, fontName=font_name
+    )
+    body_style = ParagraphStyle(
+        'CustomBody', parent=styles['Normal'], fontSize=12, spaceAfter=12, leading=18, fontName=font_name
+    )
+
+    title = Path(original_filename).stem
+    story.append(Paragraph(title, title_style))
+    story.append(Spacer(1, 20))
+
+    # Paragraphs
+    for paragraph in doc.paragraphs:
+        text = (paragraph.text or '').strip()
+        if not text:
+            continue
+        style = body_style
+        try:
+            if getattr(paragraph, 'style', None) and getattr(paragraph.style, 'name', '').startswith('Heading'):
+                style = styles['Heading2']
+                style.fontName = font_name
+        except Exception:
+            style = body_style
+        story.append(Paragraph(text, style))
+        story.append(Spacer(1, 6))
+
+    # Tables (simple text rendering)
+    for table in getattr(doc, 'tables', []):
+        story.append(Spacer(1, 12))
+        for row in table.rows:
+            row_text = " | ".join([(cell.text or '').strip() for cell in row.cells])
+            if row_text:
+                story.append(Paragraph(row_text, body_style))
+        story.append(Spacer(1, 12))
+
+    pdf.build(story)
+    buffer.seek(0)
+    return buffer.read()
 
 async def forward_to_n8n_webhook(data: dict, endpoint: str = "prompt") -> dict:
     """
@@ -1079,7 +1163,32 @@ async def upload_file(
 
         print(f"File read successfully. Size: {file_size} bytes")
 
-        # Google Drive 백그라운드 업로드를 위한 임시 사본 생성 및 작업 예약
+        # DOCX 파일은 즉시 PDF로 변환만 수행하고, Drive 업로드/벡터링은 나중에 수행
+        ext = get_file_extension(file.filename)
+        if ext == 'docx':
+            try:
+                pdf_bytes = convert_docx_bytes_to_pdf_bytes(file_content, file.filename)
+                # 변환된 PDF를 /tmp에 저장
+                temp_dir = Path("/tmp")
+                temp_dir.mkdir(exist_ok=True)
+                safe_name = os.path.basename(file.filename)
+                base_stem = Path(safe_name).stem or "converted"
+                output_path = temp_dir / f"{base_stem}.pdf"
+                with open(output_path, 'wb') as pf:
+                    pf.write(pdf_bytes)
+                logger.info(f"DOCX → PDF 변환 완료: {output_path}")
+                return {
+                    "success": True,
+                    "message": "DOCX 파일을 PDF로 변환했습니다. 이후 처리는 나중에 수행됩니다.",
+                    "filename": file.filename,
+                    "size": file_size,
+                    "converted_pdf_path": str(output_path),
+                    "uploaded_at": datetime.utcnow().isoformat()
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"DOCX → PDF 변환 실패: {e}")
+
+        # 그 외 파일은 기존 로직 수행 (Drive 백그라운드 업로드 + 벡터링)
         drive_upload_scheduled = False
         drive_upload_schedule_error: Optional[str] = None
         try:
@@ -1101,7 +1210,6 @@ async def upload_file(
             drive_upload_schedule_error = str(e)
             logger.warning(f"Failed to schedule Drive upload: {e}")
 
-        # 파일 처리 및 업로드
         result = await process_and_upload_file(file_content, file.filename)
         logger.info("파일 처리 및 업로드 완료")
 
