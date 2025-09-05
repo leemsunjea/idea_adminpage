@@ -1206,11 +1206,11 @@ tr:hover {
   display: flex;
   gap: 2rem;
   height: 100%;
-  flex-direction: column;
+  flex-direction: row;
 }
 
 .chatbot-url-section {
-  flex: 1;
+  flex: 0 0 400px;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1221,7 +1221,7 @@ tr:hover {
 }
 
 .chatbot-preview {
-  flex: 2;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background-color: #2d2d2d;
@@ -1489,13 +1489,13 @@ tr:hover {
 }
 
 /* Responsive Styles */
-@media (min-width: 1024px) {
+@media (max-width: 1024px) {
   .chatbot-connection-container {
-    flex-direction: row;
+    flex-direction: column;
   }
   
   .chatbot-url-section {
-    max-width: 400px;
+    flex: 1;
   }
 }
 

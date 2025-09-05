@@ -342,9 +342,6 @@ async function loadDocumentList() {
 
   // Initialize reference data settings when DOM is loaded
   document.addEventListener('DOMContentLoaded', function () {
-    // 초기 상태: 로그인하지 않은 상태로 UI 숨김
-    hideLoggedInUI();
-    
     // Initialize reference data settings
     loadReferenceSettings();
     
@@ -521,8 +518,8 @@ async function loadDocumentList() {
     // 선택한 탭 컨텐츠 표시
     let activeSection;
     if (tabId === 'admin-management') {
-      activeSection = document.getElementById('admin-management-content');
-      console.log('Looking for admin-management-content:', activeSection);
+      // 관리자 기능 제거됨
+      return;
     } else {
       activeSection = document.getElementById(tabId + '-content') || document.getElementById(tabId);
       console.log('Looking for', tabId + '-content or #' + tabId + ':', activeSection);
@@ -546,7 +543,6 @@ async function loadDocumentList() {
       'prompt-setting': 'promptsetting',
       'data-setting': 'datasetting',
       'reference-data': 'referencedatasetting',
-      'admin-management': 'adminmanage'
     };
     const btnId = buttonIdMap[tabId] || tabId;
     const activeButton = document.getElementById(btnId);
@@ -622,31 +618,6 @@ async function loadDocumentList() {
     }
   });
 
-  // 관리자 관리 버튼 이벤트 (전역에서 1회 바인딩)
-  const adminManageBtn = document.getElementById('adminmanage');
-  if (adminManageBtn) {
-    adminManageBtn.addEventListener('click', () => {
-      console.log('Admin management button clicked');
-      switchTab('admin-management');
-      // 탭 전환 후 패널 렌더
-      setTimeout(() => {
-        const adminSection = document.getElementById('admin-management-content');
-        if (adminSection && adminSection.classList.contains('active')) {
-          renderAdminPanel();
-        } else {
-          // 강제 활성화 및 렌더
-          document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
-          adminSection?.classList.add('active');
-          document.querySelectorAll('.action-btn').forEach(btn => btn.classList.remove('active'));
-          adminManageBtn.classList.add('active');
-          renderAdminPanel();
-        }
-      }, 0);
-      if (window.innerWidth <= 768) {
-        toggleSidebar();
-      }
-    });
-  }
   
   // 기본으로 챗봇 연결 탭 표시
   switchTab('chatbot-connect');

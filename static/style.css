@@ -342,7 +342,7 @@ body {
 }
 
 .sidebar:not(.collapsed)+.chat-container {
-  margin-left: 510px;
+  margin-left: 500px;
 }
 
 .chat-messages {
@@ -491,7 +491,7 @@ body {
 }
 
 .sidebar:not(.collapsed)+.chat-container .input-container {
-  left: 510px;
+  left: 500px;
 }
 
 #input-form {
@@ -875,7 +875,7 @@ body {
 
 
 .sidebar:not(.collapsed)+.chat-container {
-  margin-left: 510px;
+  margin-left: 280px;
 }
 
 .chat-messages {
@@ -1021,7 +1021,7 @@ body {
 }
 
 .sidebar:not(.collapsed)+.chat-container .input-container {
-  left: 510px;
+  left: 500px;
 }
 
 #input-form {
