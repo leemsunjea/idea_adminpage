@@ -233,12 +233,13 @@ async function loadDocumentList() {
       throw new Error('문서 목록을 불러오는데 실패했습니다.');
     }
 
-    const documents = await response.json();
+    const data = await response.json();
+    const documents = data.documents || data; // 백엔드 응답 형식에 맞게 조정
     
     if (documents.length === 0) {
       documentList.innerHTML = `
         <tr>
-          <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
+          <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">
             업로드된 문서가 없습니다.
           </td>
         </tr>
@@ -252,8 +253,15 @@ async function loadDocumentList() {
         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
           <div class="flex items-center">
             <span class="doc-icon" style="font-size:1.1em; color:#bbb;">📄</span>
-            <span class="ml-2">${doc.name}</span>
+            <div class="ml-2">
+              <div class="font-medium">${doc.name}</div>
+              <div class="text-xs text-gray-500 mt-1">${doc.filename || ''}</div>
+            </div>
           </div>
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+          <div>청크: ${doc.chunks || 0}개</div>
+          <div class="text-xs text-gray-500">벡터: ${doc.vector_count || 0}개</div>
         </td>
         <td class="px-6 py-4 whitespace-nowrap">
           <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
@@ -261,8 +269,8 @@ async function loadDocumentList() {
           </span>
         </td>
         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-          ${new Date().toLocaleString()}
-          <button class="delete-doc-btn" data-doc-name="${encodeURIComponent(doc.name)}" style="margin-left:1em; color:#e35; background:none; border:none; cursor:pointer; font-size:0.95em;">삭제</button>
+          <div>${doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : '알 수 없음'}</div>
+          <button class="delete-doc-btn" data-doc-name="${encodeURIComponent(doc.name)}" style="margin-top:0.5em; color:#e35; background:none; border:none; cursor:pointer; font-size:0.95em;">삭제</button>
         </td>
       </tr>
     `).join('');
@@ -791,53 +799,39 @@ async function loadDocumentList() {
           console.log('temperature exists:', !!document.getElementById('temperature'));
           console.log('max-tokens exists:', !!document.getElementById('max-tokens'));
           
-          // 3. 프롬프트 데이터 설정 (n8n 필드명과 HTML id 매핑)
-          if ('aiGreeting' in settings) setValue('ai-greeting', settings.aiGreeting);
-          if ('trainingData' in settings) setValue('training-data', settings.trainingData);
-          if ('instructionData' in settings) setValue('instruction-data', settings.instructionData);
+          // 3. 프롬프트 데이터 설정 (API 필드명과 HTML id 매핑)
+          if ('ai_greeting' in settings) setValue('ai-greeting', settings.ai_greeting);
+          if ('training_data' in settings) setValue('training-data', settings.training_data);
+          if ('instruction_data' in settings) setValue('instruction-data', settings.instruction_data);
           
-          // 4. GPT 설정 (n8n 필드명과 HTML id 매핑)
-          // 모델 선택 (select) - n8n에서 내려오는 값을 HTML select 옵션의 value와 일치시킴
-          const modelMap = {
-            'GPT-4o-mini': 'gpt-4o-mini',
-            'GPT-4o': 'gpt-4o',
-            'GPT-5-mini': 'gpt-5-mini',
-            'GPT-5': 'gpt-5'
-          };
-          
-          const modelFromN8n = settings['gpt-model'] || 'GPT-4o-mini';
-          const modelValue = modelMap[modelFromN8n] || 'gpt-4o-mini';
-          const temperatureValue = settings.temperature ? Number(settings.temperature) : 0.7;
-          const maxTokensValue = settings['max-tokens'] ? Number(settings['max-tokens']) : 2048;
+          // 4. GPT 설정 (API 필드명과 HTML id 매핑)
+          if ('gpt_model' in settings) setValue('gpt-model', settings.gpt_model);
+          if ('temperature' in settings) setValue('temperature', settings.temperature);
+          if ('max_tokens' in settings) setValue('max-tokens', settings.max_tokens);
           
           console.log('Setting values:', {
-            'gpt-model': modelValue,
-            temperature: temperatureValue,
-            'max-tokens': maxTokensValue
+            'gpt-model': settings.gpt_model,
+            temperature: settings.temperature,
+            'max-tokens': settings.max_tokens
           });
-          
-          // 값 설정
-          setValue('gpt-model', modelValue);
-          setValue('temperature', temperatureValue);
-          setValue('max-tokens', maxTokensValue);
           
           // 5. 슬라이더 값 업데이트
           updateSliderValue('temperature');
           
           // 6. 토글 설정 업데이트
-          if ('references' in settings) {
+          if ('references_enabled' in settings) {
             const toggleReferences = document.getElementById('toggle-references');
             if (toggleReferences) {
-              toggleReferences.checked = settings.references === true;
-              localStorage.setItem('referencesEnabled', settings.references);
+              toggleReferences.checked = settings.references_enabled === true;
+              localStorage.setItem('referencesEnabled', settings.references_enabled);
             }
           }
           
-          if ('download-button' in settings) {
+          if ('download_button_enabled' in settings) {
             const toggleDownloadButton = document.getElementById('toggle-download-button');
             if (toggleDownloadButton) {
-              toggleDownloadButton.checked = settings['download-button'] === true;
-              localStorage.setItem('downloadButtonEnabled', settings['download-button']);
+              toggleDownloadButton.checked = settings.download_button_enabled === true;
+              localStorage.setItem('downloadButtonEnabled', settings.download_button_enabled);
             }
           }
           

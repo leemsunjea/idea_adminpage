@@ -6,9 +6,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 import time
+import PyPDF2
+import io
+import tiktoken
+import pdfplumber
 
 import requests
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +22,28 @@ from pydantic import BaseModel
 
 # Supabase Integration
 from supabase_db import db
+
+# Pinecone 설정
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+pc = Pinecone(api_key=PINECONE_API_KEY) if PINECONE_API_KEY else None
+
+def make_ascii_id(text: str) -> str:
+    """텍스트를 ASCII ID로 변환"""
+    # 한글과 특수문자를 제거하고 ASCII로 변환
+    ascii_text = re.sub(r'[^\w\s-]', '', text)
+    ascii_text = re.sub(r'[-\s]+', '_', ascii_text)
+    return ascii_text.strip('_').lower()
+
+def get_embedding(text: str):
+    """OpenAI embeddings 생성"""
+    if not client:
+        raise ValueError("OpenAI 클라이언트가 초기화되지 않았습니다. OPENAI_API_KEY를 확인하세요.")
+    
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text
+    )
+    return response.data[0].embedding
 
 # ===== Supabase configuration =====
 # 환경 변수에서 Supabase 설정을 불러옵니다
@@ -373,3 +399,285 @@ async def get_chat_logs(session_uuid: str, request: Request):
         return {"success": True, "data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"채팅 로그 조회 실패: {str(e)}")
+
+
+# ===== Document management APIs =====
+
+@app.get("/api/documents")
+async def list_documents(request: Request):
+    """Pinecone에서 문서 목록을 조회"""
+    try:
+        # Pinecone에서 인덱스 목록 조회
+        pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+        index = pc.Index("ideadb")
+        
+        # 인덱스 통계 조회
+        stats = index.describe_index_stats()
+        total_vector_count = stats.get('total_vector_count', 0)
+        
+        # Pinecone에서 벡터들의 메타데이터 조회하여 고유한 문서 목록 생성
+        documents = []
+        if total_vector_count > 0:
+            # 벡터 쿼리를 통해 메타데이터 조회 (최대 1000개)
+            query_response = index.query(
+                vector=[0.0] * 1536,  # 더미 벡터 (1536은 text-embedding-3-small의 차원)
+                top_k=1000,
+                include_metadata=True
+            )
+            
+            # document_name 기준으로 중복 제거
+            unique_documents = {}
+            for match in query_response.matches:
+                metadata = match.metadata
+                doc_name = metadata.get('document_name', '')
+                if doc_name and doc_name not in unique_documents:
+                    unique_documents[doc_name] = {
+                        "name": doc_name,
+                        "filename": metadata.get('text_preview', '')[:50] + '...' if metadata.get('text_preview') else doc_name,
+                        "size": 0,  # Pinecone에서는 파일 크기 정보가 없음
+                        "pages": metadata.get('pdf_total_pages', 0),
+                        "chunks": 0,  # 개별 문서의 청크 수는 별도 계산 필요
+                        "uploaded_at": metadata.get('uploaded_at', ''),
+                        "storage_path": f"pinecone/{doc_name}",
+                        "vector_count": 0  # 개별 문서의 벡터 수는 별도 계산 필요
+                    }
+            
+            # 각 문서별 벡터 수 계산
+            for doc_name in unique_documents:
+                # 해당 문서의 벡터 수 조회
+                doc_query = index.query(
+                    vector=[0.0] * 1536,
+                    top_k=1000,
+                    include_metadata=True,
+                    filter={"document_name": {"$eq": doc_name}}
+                )
+                unique_documents[doc_name]["chunks"] = len(doc_query.matches)
+                unique_documents[doc_name]["vector_count"] = len(doc_query.matches)
+            
+            documents = list(unique_documents.values())
+        
+        return {
+            "documents": documents,
+            "total_vectors": total_vector_count
+        }
+    except Exception as e:
+        print(f"문서 목록 조회 중 오류: {str(e)}")
+        return {"documents": [], "total_vectors": 0}
+
+
+@app.delete("/api/documents/{doc_name}")
+async def delete_document(doc_name: str, request: Request):
+    """Supabase에서 문서를 삭제"""
+    try:
+        success = db.delete_document_metadata(doc_name)
+        if success:
+            return {"success": True, "message": "문서가 삭제되었습니다."}
+        else:
+            raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"문서 삭제 실패: {str(e)}")
+
+async def process_and_upload_file(file_content: bytes, original_filename: str):
+    """파일을 처리하고 Pinecone에 업로드하는 함수"""
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenAI 서비스를 사용할 수 없습니다. 관리자에게 문의해주세요."
+        )
+    
+    try:
+        # 임시 파일로 저장
+        temp_dir = Path("/tmp")
+        temp_dir.mkdir(exist_ok=True)
+        temp_file = temp_dir / original_filename
+        
+        with open(temp_file, "wb") as f:
+            f.write(file_content)
+        
+        # PDF에서 텍스트 추출 및 동적 토큰 기반 청킹 처리
+        vectors = []
+        base_name = Path(original_filename).stem
+
+        # tiktoken 인코더 준비 (모델에 맞춤)
+        try:
+            encoder = tiktoken.encoding_for_model("text-embedding-3-small")
+        except Exception:
+            encoder = tiktoken.get_encoding("cl100k_base")
+
+        def count_tokens(text: str) -> int:
+            return len(encoder.encode(text))
+
+        def split_text_by_token_limit(text: str, max_tokens: int) -> List[str]:
+            token_ids = encoder.encode(text)
+            segments: List[str] = []
+            for start in range(0, len(token_ids), max_tokens):
+                segment = encoder.decode(token_ids[start:start + max_tokens])
+                if segment.strip():
+                    segments.append(segment)
+            return segments
+
+        target_min_tokens = 1000
+        target_tokens = 1200
+        target_max_tokens = 1500
+        overlap_tokens = 200
+
+        with pdfplumber.open(str(temp_file)) as pdf:
+            total_pages = len(pdf.pages)
+
+            for i, page in enumerate(pdf.pages, start=1):
+                # 페이지 텍스트 추출
+                page_text = page.extract_text() or ""
+                if not page_text.strip():
+                    # pdfplumber로 텍스트가 없으면 PyPDF2로 재시도 (fallback)
+                    try:
+                        reader = PyPDF2.PdfReader(str(temp_file))
+                        if i - 1 < len(reader.pages):
+                            page_text = (reader.pages[i - 1].extract_text() or "").strip()
+                    except Exception:
+                        page_text = ""
+
+                if not page_text:
+                    logger.warning(f"페이지 {i}에 텍스트가 없습니다. 건너뜁니다.")
+                    continue
+
+                # 문단 단위 분리 (빈 줄 기준)
+                raw_paragraphs = [p.strip() for p in re.split(r"\n{2,}", page_text) if p and p.strip()]
+                if not raw_paragraphs:
+                    # 문단 분리가 어려우면 줄 단위로 최소 분리
+                    raw_paragraphs = [ln.strip() for ln in page_text.splitlines() if ln.strip()]
+
+                # 1차 청크 조립: 문단을 합쳐 목표 토큰 수(약 1200)에 맞게 그룹화
+                chunks_for_page: List[str] = []
+                current_parts: List[str] = []
+                current_tokens = 0
+
+                for paragraph in raw_paragraphs:
+                    para_tokens = count_tokens(paragraph)
+                    
+                    if current_tokens + para_tokens <= target_tokens:
+                        current_parts.append(paragraph)
+                        current_tokens += para_tokens
+                    else:
+                        if current_parts:
+                            chunks_for_page.append(" ".join(current_parts))
+                        current_parts = [paragraph]
+                        current_tokens = para_tokens
+
+                if current_parts:
+                    chunks_for_page.append(" ".join(current_parts))
+
+                # 2차 청크 분할: 너무 긴 청크를 토큰 제한에 맞게 분할
+                final_chunks: List[str] = []
+                for chunk in chunks_for_page:
+                    chunk_tokens = count_tokens(chunk)
+                    if chunk_tokens <= target_max_tokens:
+                        final_chunks.append(chunk)
+                    else:
+                        # 토큰 제한에 맞게 분할
+                        sub_chunks = split_text_by_token_limit(chunk, target_tokens)
+                        final_chunks.extend(sub_chunks)
+
+                # 벡터 생성 및 적재
+                for k, chunk_text in enumerate(final_chunks, start=1):
+                    try:
+                        logger.info(f"페이지 {i}, 청크 {k} 처리 중... (토큰: {count_tokens(chunk_text)})")
+                        embedding = get_embedding(chunk_text)
+                        vector_id = make_ascii_id(f"{base_name}_page{i}_chunk{k}")
+
+                        vectors.append({
+                            "id": vector_id,
+                            "values": embedding,
+                            "metadata": {
+                                "document_name": base_name,
+                                "page": i,
+                                "pdf_total_pages": total_pages,
+                                "chunk": k,
+                                "text": chunk_text,
+                                "text_preview": chunk_text[:200],
+                                "uploaded_at": datetime.utcnow().isoformat()
+                            }
+                        })
+                        logger.info(f"페이지 {i}, 청크 {k} 처리 완료, 벡터 ID: {vector_id}")
+                    except Exception as e:
+                        logger.error(f"청크 처리 중 오류 (페이지 {i}, 청크 {k}): {str(e)}")
+                        continue
+
+        # Pinecone에 업로드
+        if vectors:
+            index = pc.Index("ideadb")
+            index.upsert(vectors=vectors)
+            logger.info(f"총 {len(vectors)}개의 벡터를 Pinecone에 업로드했습니다.")
+            
+            # Supabase에 메타데이터 저장
+            db.save_document_metadata(
+                document_name=base_name,
+                original_filename=original_filename,
+                file_size=len(file_content),
+                total_pages=total_pages,
+                total_chunks=len(vectors),
+                storage_path=f"local/{base_name}"
+            )
+            
+            return {
+                "status": "success",
+                "message": f"성공적으로 {len(vectors)}개의 청크를 업로드했습니다.",
+                "document_name": base_name,
+                "total_pages": total_pages,
+                "total_chunks": len(vectors)
+            }
+        else:
+            error_msg = "처리할 텍스트가 없습니다."
+            logger.warning(error_msg)
+            return {"status": "error", "message": error_msg}
+
+    except Exception as e:
+        error_msg = f"파일 처리 중 오류가 발생했습니다: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=error_msg
+        )
+    finally:
+        # 임시 파일 정리
+        if 'temp_file' in locals() and temp_file.exists():
+            try:
+                temp_file.unlink()
+                logger.info(f"임시 파일 삭제: {temp_file}")
+            except Exception as e:
+                logger.warning(f"임시 파일 삭제 실패: {str(e)}")
+
+@app.post("/api/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """문서 업로드 및 임베딩 처리"""
+    try:
+        # 파일 크기 제한 (50MB)
+        max_size = 50 * 1024 * 1024
+        if file.size and file.size > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail="파일 크기가 50MB를 초과합니다."
+            )
+        
+        # PDF 파일만 허용
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(
+                status_code=400,
+                detail="PDF 파일만 업로드 가능합니다."
+            )
+        
+        # 파일 내용 읽기
+        file_content = await file.read()
+
+        # 파일 처리 및 업로드
+        result = await process_and_upload_file(file_content, file.filename)
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"문서 업로드 중 오류: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"문서 업로드 실패: {str(e)}"
+        )
