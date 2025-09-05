@@ -107,11 +107,41 @@ class SupabaseDB:
     
     # ===== 앱 설정 관리 =====
     def get_app_settings(self) -> Dict:
-        """앱 설정 조회"""
+        """앱 설정 조회 (key-value 구조)"""
         try:
-            response = supabase.table('app_settings').select('*').limit(1).execute()
+            response = supabase.table('app_settings').select('*').execute()
             if response.data:
-                return response.data[0]
+                # key-value 구조를 flat 구조로 변환
+                settings = {}
+                for item in response.data:
+                    key = item['key']
+                    value = item['value']
+                    
+                    # key를 snake_case로 변환
+                    key_mapping = {
+                        'aiGreeting': 'ai_greeting',
+                        'trainingData': 'training_data',
+                        'instructionData': 'instruction_data',
+                        'gptModel': 'gpt_model',
+                        'temperature': 'temperature',
+                        'maxTokens': 'max_tokens',
+                        'referencesEnabled': 'references_enabled',
+                        'downloadButtonEnabled': 'download_button_enabled'
+                    }
+                    
+                    db_key = key_mapping.get(key, key)
+                    
+                    # 타입 변환
+                    if key in ['temperature']:
+                        settings[db_key] = float(value) if value else 0.7
+                    elif key in ['maxTokens']:
+                        settings[db_key] = int(value) if value else 1000
+                    elif key in ['referencesEnabled', 'downloadButtonEnabled']:
+                        settings[db_key] = value.lower() == 'true' if value else False
+                    else:
+                        settings[db_key] = value or ''
+                
+                return settings
             else:
                 # 기본값 반환
                 return {
@@ -129,11 +159,47 @@ class SupabaseDB:
             return {}
     
     def save_app_settings(self, settings_data: Dict) -> Dict:
-        """앱 설정 저장"""
+        """앱 설정 저장 (key-value 구조)"""
         try:
-            settings_data['updated_at'] = datetime.utcnow().isoformat()
-            response = supabase.table('app_settings').upsert(settings_data).execute()
-            return response.data[0] if response.data else settings_data
+            results = []
+            for key, value in settings_data.items():
+                # key를 camelCase로 변환
+                key_mapping = {
+                    'ai_greeting': 'aiGreeting',
+                    'training_data': 'trainingData',
+                    'instruction_data': 'instructionData',
+                    'gpt_model': 'gptModel',
+                    'temperature': 'temperature',
+                    'max_tokens': 'maxTokens',
+                    'references_enabled': 'referencesEnabled',
+                    'download_button_enabled': 'downloadButtonEnabled'
+                }
+                
+                db_key = key_mapping.get(key, key)
+                
+                # 기존 레코드가 있는지 확인
+                existing = supabase.table('app_settings').select('id').eq('key', db_key).execute()
+                
+                if existing.data:
+                    # 업데이트
+                    response = supabase.table('app_settings').update({
+                        'value': str(value),
+                        'updated_at': datetime.utcnow().isoformat()
+                    }).eq('key', db_key).execute()
+                else:
+                    # 새로 생성
+                    response = supabase.table('app_settings').insert({
+                        'key': db_key,
+                        'value': str(value),
+                        'description': f'{db_key} 설정',
+                        'created_at': datetime.utcnow().isoformat(),
+                        'updated_at': datetime.utcnow().isoformat()
+                    }).execute()
+                
+                if response.data:
+                    results.append(response.data[0])
+            
+            return {'saved_items': results}
         except Exception as e:
             print(f"앱 설정 저장 중 오류: {str(e)}")
             raise

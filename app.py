@@ -329,11 +329,11 @@ async def save_settings(request: Request, body: SaveSettingsRequest):
             'ai_greeting': body.ai_greeting,
             'training_data': body.training_data,
             'instruction_data': body.instruction_data,
-            'gpt_model': body.gpt_model,
-            'temperature': body.temperature,
-            'max_tokens': body.max_tokens,
-            'references_enabled': body.references_enabled,
-            'download_button_enabled': body.download_button_enabled
+            'gpt_model': body.gpt_settings.model,
+            'temperature': body.gpt_settings.temperature,
+            'max_tokens': body.gpt_settings.max_tokens,
+            'references_enabled': body.reference_settings.references_enabled,
+            'download_button_enabled': body.reference_settings.download_button_enabled
         }
         result = db.save_app_settings(settings_data)
         return {

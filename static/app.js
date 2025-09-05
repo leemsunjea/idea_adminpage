@@ -149,10 +149,10 @@ async function savePrompt(event) {
     const downloadButtonEnabled = document.getElementById('toggle-download-button')?.checked ?? true;
 
     try {
-        // Validate required fields
-        if (!trainingData) {
-            throw new Error('학습데이터는 필수 항목입니다.');
-        }
+        // Validate required fields (optional validation)
+        // if (!trainingData) {
+        //     throw new Error('학습데이터는 필수 항목입니다.');
+        // }
         
         // Combine all data into a single payload
         const payload = {
