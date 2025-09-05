@@ -251,12 +251,9 @@ async function loadDocumentList() {
     documentList.innerHTML = documents.map(doc => `
       <tr class="hover:bg-gray-50">
         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-          <div class="flex items-center">
-            <span class="doc-icon" style="font-size:1.1em; color:#bbb;">📄</span>
-            <div class="ml-2">
-              <div class="font-medium">${doc.name}</div>
-              <div class="text-xs text-gray-500 mt-1">${doc.filename || ''}</div>
-            </div>
+          <div>
+            <div class="font-medium">${doc.name}</div>
+            <div class="text-xs text-gray-500 mt-1">${doc.filename || ''}</div>
           </div>
         </td>
         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -936,6 +933,102 @@ async function loadDocumentList() {
   
   // 페이지 로드 시 토글 설정 불러오기
   loadToggleSettings();
+
+  // 문서 업로드 폼 이벤트 리스너
+  const uploadForm = document.getElementById('document-upload-form');
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', handleDocumentUpload);
+  }
+
+  // 파일 선택 시 표시 텍스트 업데이트
+  const fileInput = document.getElementById('document-file');
+  if (fileInput) {
+    fileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        // 파일이 선택되면 ::before 콘텐츠를 파일명으로 변경
+        this.style.setProperty('--file-name', `"${file.name}"`);
+        this.classList.add('file-selected');
+      } else {
+        // 파일이 선택되지 않으면 기본 텍스트로 복원
+        this.style.removeProperty('--file-name');
+        this.classList.remove('file-selected');
+      }
+    });
+  }
+
+  // 문서 업로드 처리 함수
+  async function handleDocumentUpload(event) {
+    event.preventDefault();
+    
+    const fileInput = document.getElementById('document-file');
+    const uploadBtn = document.getElementById('upload-btn');
+    const btnText = uploadBtn.querySelector('.btn-text');
+    const btnLoading = uploadBtn.querySelector('.btn-loading');
+    
+    if (!fileInput.files[0]) {
+      showNotification('파일을 선택해주세요.', 'error');
+      return;
+    }
+    
+    const file = fileInput.files[0];
+    
+    // 파일 크기 체크 (50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      showNotification('파일 크기가 50MB를 초과합니다.', 'error');
+      return;
+    }
+    
+    // PDF 파일 체크
+    if (file.type !== 'application/pdf') {
+      showNotification('PDF 파일만 업로드 가능합니다.', 'error');
+      return;
+    }
+    
+    try {
+      // 업로드 버튼 비활성화 및 로딩 상태
+      uploadBtn.disabled = true;
+      btnText.style.display = 'none';
+      btnLoading.style.display = 'inline';
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        headers: authHeaders()
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || '업로드에 실패했습니다.');
+      }
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        showNotification(`문서가 성공적으로 업로드되었습니다. (${result.total_chunks}개 청크)`, 'success');
+        
+        // 파일 입력 초기화
+        fileInput.value = '';
+        
+        // 문서 목록 새로고침
+        loadDocumentList();
+      } else {
+        throw new Error(result.message || '업로드에 실패했습니다.');
+      }
+      
+    } catch (error) {
+      console.error('문서 업로드 오류:', error);
+      showNotification(`업로드 실패: ${error.message}`, 'error');
+    } finally {
+      // 업로드 버튼 활성화 및 로딩 상태 해제
+      uploadBtn.disabled = false;
+      btnText.style.display = 'inline';
+      btnLoading.style.display = 'none';
+    }
+  }
 
   // 참조 데이터 수량 선택 관련 기능
   const quantityInput = document.getElementById('dataQuantity');

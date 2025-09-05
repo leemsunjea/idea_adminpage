@@ -425,22 +425,28 @@ async def list_documents(request: Request):
                 include_metadata=True
             )
             
-            # document_name 기준으로 중복 제거
+            # document_name 기준으로 중복 제거하고 최신 added_date 찾기
             unique_documents = {}
             for match in query_response.matches:
                 metadata = match.metadata
                 doc_name = metadata.get('document_name', '')
-                if doc_name and doc_name not in unique_documents:
-                    unique_documents[doc_name] = {
-                        "name": doc_name,
-                        "filename": metadata.get('text_preview', '')[:50] + '...' if metadata.get('text_preview') else doc_name,
-                        "size": 0,  # Pinecone에서는 파일 크기 정보가 없음
-                        "pages": metadata.get('pdf_total_pages', 0),
-                        "chunks": 0,  # 개별 문서의 청크 수는 별도 계산 필요
-                        "uploaded_at": metadata.get('uploaded_at', ''),
-                        "storage_path": f"pinecone/{doc_name}",
-                        "vector_count": 0  # 개별 문서의 벡터 수는 별도 계산 필요
-                    }
+                if doc_name:
+                    added_date = metadata.get('added_date', '')
+                    uploaded_at = metadata.get('uploaded_at', '')
+                    
+                    # 기존 문서가 없거나 현재 문서의 added_date가 더 최신인 경우
+                    if doc_name not in unique_documents or (added_date and added_date > unique_documents[doc_name].get('added_date', '')):
+                        unique_documents[doc_name] = {
+                            "name": doc_name,
+                            "filename": metadata.get('text_preview', '')[:50] + '...' if metadata.get('text_preview') else doc_name,
+                            "size": 0,  # Pinecone에서는 파일 크기 정보가 없음
+                            "pages": metadata.get('pdf_total_pages', 0),
+                            "chunks": 0,  # 개별 문서의 청크 수는 별도 계산 필요
+                            "uploaded_at": added_date or uploaded_at,  # added_date 우선, 없으면 uploaded_at
+                            "added_date": added_date,  # 원본 added_date 저장
+                            "storage_path": f"pinecone/{doc_name}",
+                            "vector_count": 0  # 개별 문서의 벡터 수는 별도 계산 필요
+                        }
             
             # 각 문서별 벡터 수 계산
             for doc_name in unique_documents:

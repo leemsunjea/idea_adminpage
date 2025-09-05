@@ -277,6 +277,37 @@
     <div id="data-setting-content" class="content-section">
       <h2>데이터 관리</h2>
 
+      <!-- 문서 업로드 섹션 -->
+      <div class="content-box mb-6">
+        <h3 class="text-lg font-semibold mb-4">문서 업로드</h3>
+        <div class="upload-form">
+          <form id="document-upload-form" enctype="multipart/form-data">
+            <div class="form-group">
+              <label for="document-file" class="block text-sm font-medium text-gray-700 mb-2">
+                PDF 파일 선택
+              </label>
+              <input 
+                type="file" 
+                id="document-file" 
+                name="file" 
+                accept=".pdf" 
+                class="file-input"
+                required
+              >
+              <p class="form-hint mt-2">
+                PDF 파일만 업로드 가능합니다. (최대 50MB)
+              </p>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="upload-btn">
+                <span class="btn-text">문서 업로드</span>
+                <span class="btn-loading" style="display: none;">업로드 중...</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <!-- 문서 목록 섹션 -->
       <div class="content-box mb-6">
         <div class="table-header-row">
@@ -285,7 +316,7 @@
             새로고침
           </button>
         </div>
-        <div class="custom-table-wrapper">
+        <div class="custom-table-wrapper" style="max-height: 500px; overflow-y: auto;">
           <table class="custom-table">
             <thead>
               <tr>
