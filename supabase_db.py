@@ -162,13 +162,23 @@ class SupabaseDB:
         try:
             data = {
                 'session_uuid': session_uuid,
-                'started_at': datetime.utcnow().isoformat()
+                'started_at': datetime.utcnow().isoformat(),
+                'message_count': 0
             }
             response = supabase.table('chat_sessions').insert(data).execute()
             return response.data[0] if response.data else data
         except Exception as e:
             print(f"채팅 세션 생성 중 오류: {str(e)}")
             raise
+    
+    def get_chat_session(self, session_uuid: str) -> Dict:
+        """특정 세션 조회"""
+        try:
+            response = supabase.table('chat_sessions').select('*').eq('session_uuid', session_uuid).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            print(f"채팅 세션 조회 중 오류: {str(e)}")
+            return None
     
     def get_chat_sessions(self) -> List[Dict]:
         """채팅 세션 목록 조회"""

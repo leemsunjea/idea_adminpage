@@ -401,6 +401,35 @@ async def get_chat_logs(session_uuid: str, request: Request):
         raise HTTPException(status_code=500, detail=f"채팅 로그 조회 실패: {str(e)}")
 
 
+@app.post("/api/chat/save-message")
+async def save_chat_message(request: Request):
+    """챗봇 대화 메시지를 Supabase에 자동저장"""
+    try:
+        data = await request.json()
+        session_uuid = data.get('session_uuid')
+        role = data.get('role')  # 'user' or 'assistant'
+        message = data.get('message')
+        
+        if not all([session_uuid, role, message]):
+            raise HTTPException(status_code=400, detail="필수 필드가 누락되었습니다.")
+        
+        # 세션이 없으면 새로 생성
+        if not db.get_chat_session(session_uuid):
+            db.create_chat_session(session_uuid)
+        
+        # 메시지 저장
+        result = db.add_chat_log(session_uuid, role, message)
+        
+        return {
+            "success": True,
+            "message": "메시지가 성공적으로 저장되었습니다.",
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"채팅 메시지 저장 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"메시지 저장 실패: {str(e)}")
+
+
 # ===== Document management APIs =====
 
 @app.get("/api/documents")

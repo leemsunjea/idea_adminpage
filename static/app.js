@@ -1634,7 +1634,10 @@ async function loadChatSessions() {
       sidebar.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><div class="loading-text">세션을 불러오는 중...</div></div>';
     }
     
-    const res = await fetch('/api/chat/sessions', { headers: authHeaders(), credentials: 'same-origin' });
+    const res = await fetch('/api/chat/sessions', { 
+      headers: { 'Content-Type': 'application/json' }, 
+      credentials: 'same-origin' 
+    });
     if (!res.ok) throw new Error('세션 목록 로드 실패');
     
     const json = await res.json();
@@ -1651,7 +1654,10 @@ async function loadChatSessions() {
     }
     chatSessionsLoaded = true;
   } catch (e) {
-    console.error(e);
+    console.error('채팅 세션 로드 실패:', e);
+    if (sidebar) {
+      sidebar.innerHTML = '<div style="padding:8px;color:#ef4444;">세션을 불러오는데 실패했습니다.</div>';
+    }
   } finally {
     chatSessionsLoading = false;
   }
@@ -1679,7 +1685,10 @@ async function loadChatLogs(uuid) {
     // 순차적 로딩을 위한 지연 (사용자 경험 개선)
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    const res = await fetch(`/api/chat/logs/${encodeURIComponent(uuid)}`, { headers: authHeaders(), credentials: 'same-origin' });
+    const res = await fetch(`/api/chat/logs/${encodeURIComponent(uuid)}`, { 
+      headers: { 'Content-Type': 'application/json' }, 
+      credentials: 'same-origin' 
+    });
     if (!res.ok) throw new Error('채팅 로그 로드 실패');
     const json = await res.json();
     const logs = json.data || [];
@@ -1699,12 +1708,12 @@ async function loadChatLogs(uuid) {
 
     function renderLogs(logsToRender) {
       messages.innerHTML = logsToRender.map(l => {
-        const type = (l.type || l.role || '').toLowerCase();
-        const isBot = type === 'bot' || type === 'assistant';
-        const isUser = type === 'user';
-        const content = l.message || l.content || '';
-        const ts = l.timestamp || '';
-        const references = l.references || l.References || '';
+        const role = (l.role || '').toLowerCase();
+        const isBot = role === 'assistant';
+        const isUser = role === 'user';
+        const content = l.message || '';
+        const ts = l.timestamp ? new Date(l.timestamp).toLocaleString('ko-KR') : '';
+        const references = l.metadata?.references || '';
         const referencesBtn = references ? `
           <div class="references-actions">
             <button class="references-chip" data-ref="${encodeURIComponent(references)}" title="참조 보기">참조 보기</button>
@@ -1796,53 +1805,55 @@ function setupSortOptions() {
 
 function displaySortedSessions(sortType) {
   const sidebar = document.querySelector('#chat-history-content .chat-list');
-  if (!sidebar || !chatSessionsData.length) return;
+  if (!sidebar) return;
+  
+  // 빈 배열일 때 메시지 표시
+  if (!chatSessionsData.length) {
+    sidebar.innerHTML = '<div style="padding:8px;color:#9ca3af;">저장된 채팅 세션이 없습니다.</div>';
+    return;
+  }
   
   let sortedSessions = [...chatSessionsData];
   
   switch (sortType) {
     case 'messages-desc':
       sortedSessions.sort((a, b) => {
-        const countA = parseInt(a.message_count || a.count || a[Object.keys(a)[3]] || 0);
-        const countB = parseInt(b.message_count || b.count || b[Object.keys(b)[3]] || 0);
+        const countA = parseInt(a.message_count || 0);
+        const countB = parseInt(b.message_count || 0);
         return countB - countA;
       });
       break;
       
     case 'messages-asc':
       sortedSessions.sort((a, b) => {
-        const countA = parseInt(a.message_count || a.count || a[Object.keys(a)[3]] || 0);
-        const countB = parseInt(b.message_count || b.count || b[Object.keys(b)[3]] || 0);
+        const countA = parseInt(a.message_count || 0);
+        const countB = parseInt(b.message_count || 0);
         return countA - countB;
       });
       break;
       
     case 'text-desc':
       sortedSessions.sort((a, b) => {
-        const textA = (a.message_count || a.count || a[Object.keys(a)[3]] || 0) * 100; // 대략적인 텍스트 길이 추정
-        const textB = (b.message_count || b.count || b[Object.keys(b)[3]] || 0) * 100;
+        const textA = (a.message_count || 0) * 100; // 대략적인 텍스트 길이 추정
+        const textB = (b.message_count || 0) * 100;
         return textB - textA;
       });
       break;
       
     case 'text-asc':
       sortedSessions.sort((a, b) => {
-        const textA = (a.message_count || b.count || a[Object.keys(a)[3]] || 0) * 100;
-        const textB = (b.message_count || b.count || b[Object.keys(b)[3]] || 0) * 100;
+        const textA = (a.message_count || 0) * 100;
+        const textB = (b.message_count || 0) * 100;
         return textA - textB;
       });
       break;
       
     default:
-      // 기본 순서: 대화의 끝시간(ended_at)을 기준으로 최신 대화가 맨 위에 오도록 정렬
+      // 기본 순서: 대화의 시작시간(started_at)을 기준으로 최신 대화가 맨 위에 오도록 정렬
       sortedSessions.sort((a, b) => {
-        // ended_at (대화 종료 시간)을 우선으로 사용
-        const timeA = new Date(a.ended_at || a.end || a[Object.keys(a)[2]] || 0);
-        const timeB = new Date(b.ended_at || b.end || b[Object.keys(b)[2]] || 0);
-        
-        // 디버깅: 시간 정보 출력
-        console.log(`Session A (${a.uuid || 'unknown'}): ended_at=${a.ended_at}, parsed=${timeA}`);
-        console.log(`Session B (${b.uuid || 'unknown'}): ended_at=${b.ended_at}, parsed=${timeB}`);
+        // started_at (대화 시작 시간)을 우선으로 사용
+        const timeA = new Date(a.started_at || 0);
+        const timeB = new Date(b.started_at || 0);
         
         // 끝시간이 더 최근인 대화가 맨 위에 오도록 내림차순 정렬
         // 예: 2025.08.13이 2025.07.30보다 위에 표시됨
@@ -1860,23 +1871,10 @@ function displaySortedSessions(sortType) {
   
   // 정렬된 세션 표시
   sidebar.innerHTML = sortedSessions.map((s, index) => {
-    const uuid = s.uuid || s.UUID || s.Uuid || Object.values(s)[0];
-    const started = s.started_at || s.start || s[Object.keys(s)[1]] || '';
-    const ended = s.ended_at || s.end || s[Object.keys(s)[2]] || '';
-    const count = s.message_count || s.count || s[Object.keys(s)[3]] || '';
-    const references = s.references || s.References || ''; // E열의 references 데이터
-    
-    // 시간 표시 개선: ended_at이 있으면 ended_at을 우선 표시, 없으면 started_at 사용
-    const displayTime = ended || started;
-    const timeLabel = ended ? '종료' : '시작';
-    
-    // references 정보가 있는 경우 표시
-    const referencesInfo = references ? `
-      <div class="session-references">
-        <span class="references-icon">📚</span>
-        <span class="references-text">참조 자료 포함</span>
-      </div>
-    ` : '';
+    const uuid = s.session_uuid || '';
+    const started = s.started_at ? new Date(s.started_at).toLocaleString('ko-KR') : '';
+    const ended = s.ended_at ? new Date(s.ended_at).toLocaleString('ko-KR') : '';
+    const count = s.message_count || 0;
     
     // 정렬 순서 표시 (1, 2, 3...)
     const orderNumber = index + 1;
@@ -1894,7 +1892,6 @@ function displaySortedSessions(sortType) {
                    <span class="message-count">${count}개 메시지</span>
                    <span class="sort-priority">${ended ? '종료시간 기준' : '시작시간 기준'}</span>
                  </div>
-                 ${referencesInfo}
                </div>
              </div>
            </div>`;
@@ -2017,8 +2014,7 @@ async function apiDelete(path) {
 }
 
 function authHeaders() {
-  const headers = { 'Accept': 'application/json' };
-  return headers;
+  return { 'Accept': 'application/json' };
 }
 
 
