@@ -1,6 +1,6 @@
 # Admin Panel Backend
 
-이 백엔드 서버는 파일 업로드를 처리하고 n8n으로 전달하는 API를 제공합니다.
+이 백엔드 서버는 Supabase를 사용하여 데이터를 저장하고 관리하는 API를 제공합니다.
 
 ## 설정 방법
 
@@ -9,17 +9,22 @@
    pip install -r requirements.txt
    ```
 
-2. 환경 변수 설정 (`.env` 파일 생성):
+2. Supabase 데이터베이스 설정:
+   - Supabase 프로젝트 생성: https://supabase.com
+   - `supabase_schema.sql` 파일을 Supabase SQL Editor에서 실행하여 테이블 생성
+   - 프로젝트 설정에서 URL과 Service Role Key 확인
+
+3. 환경 변수 설정 (`.env` 파일 생성):
    ```env
-   # 서버 설정
-   PORT=8000
+   # Supabase 설정
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
    
-   # n8n 웹훅 URL
-   N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/upload-data
+   # OpenAI 설정
+   OPENAI_API_KEY=your_openai_api_key_here
    
-   # 파일 업로드 설정
-   UPLOAD_DIR=uploads
-   MAX_FILE_SIZE=52428800  # 50MB (바이트 단위)
+   # Pinecone 설정
+   PINECONE_API_KEY=your_pinecone_api_key_here
    ```
 
 ## 실행 방법
@@ -40,11 +45,23 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 - `GET /api/health`
   - 서버 상태 확인
 
-### 파일 업로드
-- `POST /api/upload`
-  - 파일을 업로드하고 n8n으로 전송
-  - Content-Type: multipart/form-data
-  - 파라미터: `file` (업로드할 파일)
+### 설정 관리
+- `GET /api/load-settings`
+  - Supabase에서 앱 설정 조회
+- `POST /api/save-settings`
+  - Supabase에 앱 설정 저장
+
+### 채팅 관리
+- `GET /api/chat/sessions`
+  - 채팅 세션 목록 조회
+- `GET /api/chat/logs/{session_uuid}`
+  - 특정 세션의 채팅 로그 조회
+
+### 프롬프트 관리
+- `POST /api/save-prompt`
+  - 프롬프트 데이터 저장
+- `POST /api/save-gpt-settings`
+  - GPT 설정 저장
 
 ## 개발 가이드
 
@@ -69,12 +86,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 ### 테스트
 ```bash
-# 테스트 파일 업로드 예시
-curl -X 'POST' \
-  'http://localhost:8000/api/upload' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: multipart/form-data' \
-  -F 'file=@test.jpg;type=image/jpeg'
+# 서버 상태 확인
+curl -X 'GET' 'http://localhost:8000/api/health'
+
+# 설정 조회
+curl -X 'GET' 'http://localhost:8000/api/load-settings'
+
+# 채팅 세션 목록 조회
+curl -X 'GET' 'http://localhost:8000/api/chat/sessions'
 ```
 
 ## 배포
